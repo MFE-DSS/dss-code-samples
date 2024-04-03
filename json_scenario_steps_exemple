@@ -1,0 +1,144 @@
+{
+  "type": "scenario-steps",
+  "version": "12.5.0",
+  "steps": [
+    {
+      "type": "custom_python",
+      "name": "Step #6",
+      "runConditionType": "RUN_IF_STATUS_MATCH",
+      "runConditionStatuses": [
+        "SUCCESS",
+        "WARNING"
+      ],
+      "runConditionExpression": "",
+      "resetScenarioStatus": false,
+      "delayBetweenRetries": 10,
+      "maxRetriesOnFail": 0,
+      "params": {
+        "script": "import time\nimport dataiku\nfrom dataiku.scenario import Scenario, BuildFlowItemsStepDefHelper\nfrom dataikuapi.dss.future import DSSFuture\n\ns = Scenario()\n\nclient = dataiku.api_client()\nproject = client.get_default_project()\n\n# Récupération de la variable de projet correspondante à la moyenne des temps de traitement du scénario courant.\nproject_variables = project.get_variables()\nTIMEOUT_SECONDS = project_variables[\"standard\"][\"average_scenario1_time\"]\n\n# Remplacez ce bloc par les étapes de votre scénario\nstep_handle = s.build_dataset(\"Dataiku_Com\", asynchronous=True)\n\nstart = time.time()\nwhile not step_handle.is_done():\n    end = time.time()\n    if end - start > float(TIMEOUT_SECONDS):\n        f = DSSFuture(client, step_handle.future_id)\n        f.abort()\n        # Ici, vous pouvez configurer une alerte spécifique ou une notification, par exemple via un e-mail ou un webhook\n        raise Exception(\"Scenario aborted: exceeded average processing time limit.\")\n    else:\n        print(\"Running... Duration: {}s\".format(int(end-start)))\n    # Pause pour réduire la charge des requêtes dans la boucle\n    time.sleep(10)\n\n\n\n",
+        "envSelection": {
+          "envMode": "INHERIT"
+        },
+        "proceedOnFailure": false
+      },
+      "$idx": 0,
+      "$selected": false
+    },
+    {
+      "type": "compute_metrics",
+      "name": "input data",
+      "runConditionType": "RUN_IF_STATUS_MATCH",
+      "runConditionStatuses": [
+        "SUCCESS",
+        "WARNING"
+      ],
+      "runConditionExpression": "",
+      "resetScenarioStatus": false,
+      "delayBetweenRetries": 10,
+      "maxRetriesOnFail": 0,
+      "params": {
+        "computes": [
+          {
+            "type": "MANAGED_FOLDER",
+            "itemId": "NlNClex0",
+            "partitionsSpec": ""
+          }
+        ],
+        "proceedOnFailure": false
+      },
+      "$idx": 1,
+      "$selected": false
+    },
+    {
+      "type": "custom_python",
+      "name": "Build Upstream Scenario",
+      "runConditionType": "RUN_IF_STATUS_MATCH",
+      "runConditionStatuses": [
+        "SUCCESS",
+        "WARNING"
+      ],
+      "runConditionExpression": "",
+      "resetScenarioStatus": false,
+      "delayBetweenRetries": 10,
+      "maxRetriesOnFail": 0,
+      "params": {
+        "script": "import dataiku\nimport time\n\n#### only 1 thing to do : complete in the dict below with your key project upstream with scenario id as 'project_name':'id_scenario';\n\ndict_projects_scenarios_ids_to_run = {\"projet_exemple\":\"scenario_id_for_build_project_name1\"\n                                     }\n\nscenario_runs = []\n\n#### Creation of API client\nclient = dataiku.api_client()\n\nfor project_key, scenario_key in dict_projects_scenarios_ids_to_run.items():\n    print(\"project_key : \" ,project_key)\n    print(\"scenario_key : \" , scenario_key)\n    \n    project=client.get_project(project_key=project_key)\n    scenario = project.get_scenario(scenario_key)\n\n    trigger_fire = scenario.run()\n    # Wait for the trigger fire to have actually started a scenario\n    scenario_run = trigger_fire.wait_for_scenario_run()\n    scenario_runs.append(scenario_run)\n\n# Poll all scenario runs, until all of them have completed\nwhile True:\n    any_not_complete = False\n    for scenario_run in scenario_runs:\n        # Update the status from the DSS API\n        scenario_run.refresh()\n        if scenario_run.running:\n            any_not_complete = True\n\n    if any_not_complete:\n        print(\"At least a scenario is still running...\")\n    else:\n        print(\"All scenarios are complete\")\n        break\n\n    # Wait a bit before checking again\n    time.sleep(30)\n\nprint(\"Scenario run ids and outcomes: %s\" % ([(sr.id, sr.outcome) for sr in scenario_runs]))",
+        "envSelection": {
+          "envMode": "INHERIT"
+        },
+        "proceedOnFailure": false
+      },
+      "$idx": 2,
+      "$selected": false
+    },
+    {
+      "type": "build_flowitem",
+      "name": "build flow and output",
+      "runConditionType": "RUN_IF_STATUS_MATCH",
+      "runConditionStatuses": [
+        "SUCCESS",
+        "WARNING"
+      ],
+      "runConditionExpression": "",
+      "resetScenarioStatus": false,
+      "delayBetweenRetries": 10,
+      "maxRetriesOnFail": 0,
+      "params": {
+        "builds": [],
+        "jobType": "RECURSIVE_BUILD",
+        "autoUpdateSchemaBeforeEachRecipeRun": false,
+        "stopAtFlowZoneBoundary": false,
+        "refreshHiveMetastore": true,
+        "handleWarningsAs": "WARNING",
+        "proceedOnFailure": false
+      },
+      "$idx": 3,
+      "$selected": false
+    },
+    {
+      "type": "check_dataset",
+      "name": "Check and control",
+      "runConditionType": "RUN_IF_STATUS_MATCH",
+      "runConditionStatuses": [
+        "SUCCESS",
+        "WARNING"
+      ],
+      "runConditionExpression": "",
+      "resetScenarioStatus": false,
+      "delayBetweenRetries": 10,
+      "maxRetriesOnFail": 0,
+      "params": {
+        "checks": [],
+        "handleWarningsAs": "WARNING",
+        "proceedOnFailure": false
+      },
+      "$idx": 4,
+      "$selected": false
+    },
+    {
+      "type": "runnable",
+      "name": "Clear All Intermediate datasets",
+      "runConditionType": "RUN_IF_STATUS_MATCH",
+      "runConditionStatuses": [
+        "SUCCESS",
+        "WARNING"
+      ],
+      "runConditionExpression": "",
+      "resetScenarioStatus": false,
+      "delayBetweenRetries": 10,
+      "maxRetriesOnFail": 0,
+      "params": {
+        "runnableType": "pyrunnable_clear-intermediate-datasets_clear_int_datasets",
+        "config": {
+          "is_dry_run": false,
+          "keep_partitioned": true,
+          "keep_shared": true
+        },
+        "adminConfig": {},
+        "proceedOnFailure": false
+      },
+      "$idx": 5,
+      "$selected": false
+    }
+  ]
+}
